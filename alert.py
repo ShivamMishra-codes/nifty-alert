@@ -5,6 +5,8 @@ import os
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 CHAT_ID = os.environ["CHAT_ID"]
 
+TOTAL_CAPITAL = 100000  # 👈 CHANGE THIS
+
 def send(msg):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
@@ -19,36 +21,51 @@ try:
         n = len(close)
 
         latest = float(close.iloc[-1])
+        prev = float(close.iloc[-2]) if n >= 2 else latest
 
-        # SAFE calculations
-        d1 = float((close.iloc[-1] / close.iloc[-2]) - 1) if n >= 2 else 0
-        d7 = float((close.iloc[-1] / close.iloc[-7]) - 1) if n >= 7 else 0
-        d30 = float((close.iloc[-1] / close.iloc[-30]) - 1) if n >= 30 else 0
-        d365 = float((close.iloc[-1] / close.iloc[-252]) - 1) if n >= 252 else 0
+        # ===== RETURNS =====
+        d1 = ((latest / prev) - 1) * 100
+        d7 = ((latest / close.iloc[-5]) - 1) * 100 if n >= 5 else 0
+        d30 = ((latest / close.iloc[-21]) - 1) * 100 if n >= 21 else 0
+        d365 = ((latest / close.iloc[0]) - 1) * 100 if n < 252 else ((latest / close.iloc[-252]) - 1) * 100
 
-        # SIGNAL LOGIC
-        if d30 < -0.10:
+        # ===== DRAWDOWN =====
+        peak = float(close.tail(126).max())
+        drawdown = ((latest - peak) / peak) * 100
+
+        # ===== SIGNAL + ALLOCATION =====
+        if drawdown <= -15:
             signal = "🔴 CRASH"
-            action = "Invest 50-60%"
-        elif d30 < -0.05:
-            signal = "🟡 MEDIUM DIP"
-            action = "Invest 20-30%"
-        elif d7 < -0.02:
-            signal = "🟢 SMALL DIP"
-            action = "Invest 10-15%"
+            invest_pct = 0.60
+        elif drawdown <= -10:
+            signal = "🟠 DEEP CORRECTION"
+            invest_pct = 0.40
+        elif drawdown <= -5:
+            signal = "🟡 CORRECTION"
+            invest_pct = 0.25
         else:
-            signal = "⚪ STABLE"
-            action = "No extra investment"
+            signal = "⚪ NORMAL"
+            invest_pct = 0.0
 
+        invest_amount = int(TOTAL_CAPITAL * invest_pct)
+
+        # Momentum tweak
+        if d1 < -2 and invest_pct > 0:
+            invest_amount = int(invest_amount * 1.2)
+
+        # ===== MESSAGE =====
         msg = f"""📊 NIFTY: {round(latest,2)}
 
-1D: {round(d1*100,2)}%
-7D: {round(d7*100,2)}%
-1M: {round(d30*100,2)}%
-1Y: {round(d365*100,2)}%
+1D: {round(d1,2)}%
+7D: {round(d7,2)}%
+1M: {round(d30,2)}%
+1Y: {round(d365,2)}%
+
+Drawdown (6M): {round(drawdown,2)}%
 
 Signal: {signal}
-Action: {action}
+
+💰 Invest Today: ₹{invest_amount}
 """
 
         send(msg)
