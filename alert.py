@@ -204,7 +204,7 @@ Regime: {regime}
 RSI(14): {round(rsi14, 1)} ({rsi_state})
 Valuation: {valuation} (PE: {round(pe,1) if pe else 'N/A'})
 
-💰 Adjusted Invest: ₹{adv_amount} (₹{adv_1L} for ₹1L)
+💰 Adjusted Invest: ₹{adv_amount} (for ₹1L Capital)
 
 --- PRO DEPLOYMENT PLAN ---
 Stage 1: ₹{stage1}
