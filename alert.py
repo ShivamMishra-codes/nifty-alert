@@ -3,6 +3,7 @@
 import yfinance as yf
 import requests
 import os
+import re
 
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 CHAT_ID = os.environ["CHAT_ID"]
@@ -23,8 +24,9 @@ def compute_rsi(series, period=14):
     rs = gain / loss
     return 100 - (100 / (1 + rs))
 
-# ===== NSE PE FETCH =====
+# ===== NSE + FALLBACK PE FETCH =====
 def get_nifty_pe():
+    # PRIMARY: NSE
     try:
         url = "https://www.nseindia.com/api/equity-stockIndices?index=NIFTY%2050"
         headers = {"User-Agent": "Mozilla/5.0"}
@@ -37,7 +39,23 @@ def get_nifty_pe():
 
         return float(data["data"][0]["pe"])
     except:
-        return None
+        pass
+
+    # FALLBACK: Trendlyne
+    try:
+        url = "https://trendlyne.com/equity/1892/NIFTY50/"
+        headers = {"User-Agent": "Mozilla/5.0"}
+
+        r = requests.get(url, headers=headers)
+        text = r.text
+
+        match = re.search(r'PE Ratio.*?(\d+\.\d+)', text)
+        if match:
+            return float(match.group(1))
+    except:
+        pass
+
+    return None
 
 # ===== PE → PERCENTILE =====
 def pe_to_percentile(pe):
@@ -137,7 +155,7 @@ try:
         # ===== REGIME =====
         regime = "🐻 Bear" if d365 < 0 else "🐂 Bull"
 
-        # ===== VALUATION (DYNAMIC) =====
+        # ===== VALUATION (DYNAMIC + FALLBACK) =====
         pe = get_nifty_pe()
         pe_percentile = pe_to_percentile(pe)
 
@@ -195,7 +213,7 @@ Drawdown (6M): {round(drawdown_6m, 2)}%
 Drawdown (ATH): {round(drawdown_ath, 2)}%
 
 Signal: {signal}
-💰 Invest Today: ₹{basic_amount} (for ₹1L Capital)
+💰 Invest Today: ₹{basic_amount} (₹{basic_1L} for ₹1L)
 
 --- ADVANCED VIEW ---
 Trend: {trend}
@@ -204,7 +222,7 @@ Regime: {regime}
 RSI(14): {round(rsi14, 1)} ({rsi_state})
 Valuation: {valuation} (PE: {round(pe,1) if pe else 'N/A'})
 
-💰 Adjusted Invest: ₹{adv_amount} (for ₹1L Capital)
+💰 Adjusted Invest: ₹{adv_amount} (₹{adv_1L} for ₹1L)
 
 --- PRO DEPLOYMENT PLAN ---
 Stage 1: ₹{stage1}
