@@ -12,16 +12,19 @@ def send(msg):
 try:
     data = yf.download("^NSEI", period="1y", interval="1d")
 
-    if data is None or data.empty or len(data) < 30:
+    if data is None or data.empty:
         send("⚠️ NIFTY data not available")
     else:
         close = data['Close']
+        n = len(close)
 
         latest = float(close.iloc[-1])
-        d1 = float((close.iloc[-1] / close.iloc[-2]) - 1)
-        d7 = float((close.iloc[-1] / close.iloc[-7]) - 1)
-        d30 = float((close.iloc[-1] / close.iloc[-30]) - 1)
-        d365 = float((close.iloc[-1] / close.iloc[-252]) - 1)
+
+        # SAFE calculations
+        d1 = float((close.iloc[-1] / close.iloc[-2]) - 1) if n >= 2 else 0
+        d7 = float((close.iloc[-1] / close.iloc[-7]) - 1) if n >= 7 else 0
+        d30 = float((close.iloc[-1] / close.iloc[-30]) - 1) if n >= 30 else 0
+        d365 = float((close.iloc[-1] / close.iloc[-252]) - 1) if n >= 252 else 0
 
         # SIGNAL LOGIC
         if d30 < -0.10:
