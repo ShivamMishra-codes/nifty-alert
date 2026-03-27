@@ -7,7 +7,7 @@ import os
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 CHAT_ID = os.environ["CHAT_ID"]
 
-TOTAL_CAPITAL = 100000
+TOTAL_CAPITAL = 500000
 
 def send(msg):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
@@ -23,7 +23,7 @@ def compute_rsi(series, period=14):
     rs = gain / loss
     return 100 - (100 / (1 + rs))
 
-# ===== GET NIFTY PE =====
+# ===== NSE PE FETCH =====
 def get_nifty_pe():
     try:
         url = "https://www.nseindia.com/api/equity-stockIndices?index=NIFTY%2050"
@@ -39,7 +39,7 @@ def get_nifty_pe():
     except:
         return None
 
-# ===== PE → PERCENTILE (APPROX) =====
+# ===== PE → PERCENTILE =====
 def pe_to_percentile(pe):
     if pe is None:
         return None
@@ -59,6 +59,7 @@ try:
 
     if data is None or data.empty:
         send("⚠️ NIFTY data not available")
+
     else:
         close = data['Close']
         n = len(close)
@@ -79,12 +80,12 @@ try:
         peak_ath = float(close.max())
         drawdown_ath = ((latest - peak_ath) / peak_ath) * 100
 
-        # ===== BASE SIGNAL =====
+        # ===== SIGNAL =====
         if drawdown_ath <= -20 or drawdown_6m <= -15:
             signal = "🔴 CRASH"
             base_pct = 0.60
         elif drawdown_6m <= -12:
-            signal = "🟠 DEEP CORRECTION"
+            signal = "🟠 DEEP CORRECTION (High)"
             base_pct = 0.30
         elif drawdown_6m <= -8:
             signal = "🟡 CORRECTION"
@@ -140,7 +141,7 @@ try:
         pe = get_nifty_pe()
         pe_percentile = pe_to_percentile(pe)
 
-        valuation = "Unknown"
+        valuation = "😐 Fair (Fallback)"
         valuation_cap = None
 
         if pe_percentile is not None:
@@ -181,21 +182,34 @@ try:
         stage2 = int(adv_amount * 0.35)
         stage3 = int(adv_amount * 0.25)
 
-        msg = f"""📊 NIFTY: {round(latest,2)}
+        # ===== MESSAGE =====
+        msg = f"""📊 NIFTY: {round(latest, 2)}
 
-1D: {round(d1,2)}% | 7D: {round(d7,2)}%
-1M: {round(d30,2)}% | 1Y: {round(d365,2)}%
+--- BASIC VIEW ---
+1D: {round(d1, 2)}%
+7D: {round(d7, 2)}%
+1M: {round(d30, 2)}%
+1Y: {round(d365, 2)}%
 
-Drawdown: {round(drawdown_6m,2)}%
+Drawdown (6M): {round(drawdown_6m, 2)}%
+Drawdown (ATH): {round(drawdown_ath, 2)}%
 
 Signal: {signal}
-💰 Invest: ₹{adv_amount}
+💰 Invest Today: ₹{basic_amount} (₹{basic_1L} for ₹1L)
 
+--- ADVANCED VIEW ---
 Trend: {trend}
-RSI: {round(rsi14,1)} ({rsi_state})
-Valuation: {valuation} (PE: {pe})
+Volatility: {vol}
+Regime: {regime}
+RSI(14): {round(rsi14, 1)} ({rsi_state})
+Valuation: {valuation} (PE: {round(pe,1) if pe else 'N/A'})
 
-Stages: ₹{stage1} | ₹{stage2} | ₹{stage3}
+💰 Adjusted Invest: ₹{adv_amount} (₹{adv_1L} for ₹1L)
+
+--- PRO DEPLOYMENT PLAN ---
+Stage 1: ₹{stage1}
+Stage 2: ₹{stage2}
+Stage 3: ₹{stage3}
 """
 
         send(msg)
