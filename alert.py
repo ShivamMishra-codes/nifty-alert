@@ -5,7 +5,7 @@ import os
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 CHAT_ID = os.environ["CHAT_ID"]
 
-TOTAL_CAPITAL = 500000  # change
+TOTAL_CAPITAL = 100000  # change
 
 def send(msg):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
