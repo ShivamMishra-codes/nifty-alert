@@ -195,7 +195,7 @@ Drawdown (6M): {round(drawdown_6m, 2)}%
 Drawdown (ATH): {round(drawdown_ath, 2)}%
 
 Signal: {signal}
-💰 Invest Today: ₹{basic_amount} (₹{basic_1L} for ₹1L)
+💰 Invest Today: ₹{basic_amount} (for ₹1L Capital)
 
 --- ADVANCED VIEW ---
 Trend: {trend}
