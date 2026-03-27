@@ -5,7 +5,7 @@ import os
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 CHAT_ID = os.environ["CHAT_ID"]
 
-TOTAL_CAPITAL = 100000  # 👈 CHANGE THIS
+TOTAL_CAPITAL = 500000  # 👈 your capital
 
 def send(msg):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
@@ -23,15 +23,15 @@ try:
         latest = float(close.iloc[-1])
         prev = float(close.iloc[-2]) if n >= 2 else latest
 
-        # ===== RETURNS =====
-        d1 = ((latest / prev) - 1) * 100
-        d7 = ((latest / close.iloc[-5]) - 1) * 100 if n >= 5 else 0
-        d30 = ((latest / close.iloc[-21]) - 1) * 100 if n >= 21 else 0
-        d365 = ((latest / close.iloc[0]) - 1) * 100 if n < 252 else ((latest / close.iloc[-252]) - 1) * 100
+        # ===== RETURNS (FIXED CLEAN) =====
+        d1 = float((latest / prev - 1) * 100)
+        d7 = float((latest / float(close.iloc[-5]) - 1) * 100) if n >= 5 else 0
+        d30 = float((latest / float(close.iloc[-21]) - 1) * 100) if n >= 21 else 0
+        d365 = float((latest / float(close.iloc[0]) - 1) * 100) if n < 252 else float((latest / float(close.iloc[-252]) - 1) * 100)
 
         # ===== DRAWDOWN =====
         peak = float(close.tail(126).max())
-        drawdown = ((latest - peak) / peak) * 100
+        drawdown = float((latest - peak) / peak * 100)
 
         # ===== SIGNAL + ALLOCATION =====
         if drawdown <= -15:
@@ -47,11 +47,14 @@ try:
             signal = "⚪ NORMAL"
             invest_pct = 0.0
 
+        # ===== ₹ CALCULATION =====
         invest_amount = int(TOTAL_CAPITAL * invest_pct)
+        invest_1L = int(100000 * invest_pct)
 
-        # Momentum tweak
+        # Momentum boost
         if d1 < -2 and invest_pct > 0:
             invest_amount = int(invest_amount * 1.2)
+            invest_1L = int(invest_1L * 1.2)
 
         # ===== MESSAGE =====
         msg = f"""📊 NIFTY: {round(latest,2)}
@@ -65,7 +68,7 @@ Drawdown (6M): {round(drawdown,2)}%
 
 Signal: {signal}
 
-💰 Invest Today: ₹{invest_amount}
+💰 Invest Today: ₹{invest_amount} (₹{invest_1L} for ₹1L capital)
 """
 
         send(msg)
