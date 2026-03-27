@@ -9,13 +9,17 @@ BOT_TOKEN = os.environ["BOT_TOKEN"]
 CHAT_ID = os.environ["CHAT_ID"]
 
 TOTAL_CAPITAL = 100000
+PE_CACHE_FILE = "pe_cache.txt"
+
 
 def send(msg):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
 
+
 def clamp(x, low, high):
     return max(low, min(x, high))
+
 
 def compute_rsi(series, period=14):
     delta = series.diff()
@@ -24,8 +28,29 @@ def compute_rsi(series, period=14):
     rs = gain / loss
     return 100 - (100 / (1 + rs))
 
-# ===== NSE + FALLBACK PE FETCH =====
+
+# ===== SAVE / LOAD PE CACHE =====
+def save_pe(pe):
+    try:
+        with open(PE_CACHE_FILE, "w") as f:
+            f.write(str(pe))
+    except:
+        pass
+
+
+def load_pe():
+    try:
+        if os.path.exists(PE_CACHE_FILE):
+            with open(PE_CACHE_FILE, "r") as f:
+                return float(f.read())
+    except:
+        pass
+    return None
+
+
+# ===== NSE + FALLBACK + CACHE =====
 def get_nifty_pe():
+
     # PRIMARY: NSE
     try:
         url = "https://www.nseindia.com/api/equity-stockIndices?index=NIFTY%2050"
@@ -37,11 +62,13 @@ def get_nifty_pe():
         response = session.get(url, headers=headers)
         data = response.json()
 
-        return float(data["data"][0]["pe"])
+        pe = float(data["data"][0]["pe"])
+        save_pe(pe)
+        return pe
     except:
         pass
 
-    # FALLBACK: Trendlyne
+    # FALLBACK: Trendlyne (improved scan)
     try:
         url = "https://trendlyne.com/equity/1892/NIFTY50/"
         headers = {"User-Agent": "Mozilla/5.0"}
@@ -49,13 +76,23 @@ def get_nifty_pe():
         r = requests.get(url, headers=headers)
         text = r.text
 
-        match = re.search(r'PE Ratio.*?(\d+\.\d+)', text)
-        if match:
-            return float(match.group(1))
+        matches = re.findall(r'(\d+\.\d+)', text)
+
+        for m in matches:
+            val = float(m)
+            if 10 < val < 50:  # realistic PE range
+                save_pe(val)
+                return val
     except:
         pass
 
+    # FINAL FALLBACK: CACHE
+    cached = load_pe()
+    if cached:
+        return cached
+
     return None
+
 
 # ===== PE → PERCENTILE =====
 def pe_to_percentile(pe):
@@ -71,6 +108,7 @@ def pe_to_percentile(pe):
         return 80
     else:
         return 95
+
 
 try:
     data = yf.download("^NSEI", period="max", interval="1d")
@@ -155,7 +193,7 @@ try:
         # ===== REGIME =====
         regime = "🐻 Bear" if d365 < 0 else "🐂 Bull"
 
-        # ===== VALUATION (DYNAMIC + FALLBACK) =====
+        # ===== VALUATION =====
         pe = get_nifty_pe()
         pe_percentile = pe_to_percentile(pe)
 
