@@ -23,6 +23,37 @@ def compute_rsi(series, period=14):
     rs = gain / loss
     return 100 - (100 / (1 + rs))
 
+# ===== GET NIFTY PE =====
+def get_nifty_pe():
+    try:
+        url = "https://www.nseindia.com/api/equity-stockIndices?index=NIFTY%2050"
+        headers = {"User-Agent": "Mozilla/5.0"}
+
+        session = requests.Session()
+        session.get("https://www.nseindia.com", headers=headers)
+
+        response = session.get(url, headers=headers)
+        data = response.json()
+
+        return float(data["data"][0]["pe"])
+    except:
+        return None
+
+# ===== PE → PERCENTILE (APPROX) =====
+def pe_to_percentile(pe):
+    if pe is None:
+        return None
+    if pe < 18:
+        return 20
+    elif pe < 21:
+        return 40
+    elif pe < 24:
+        return 60
+    elif pe < 27:
+        return 80
+    else:
+        return 95
+
 try:
     data = yf.download("^NSEI", period="max", interval="1d")
 
@@ -39,11 +70,7 @@ try:
         d1 = ((latest / prev) - 1) * 100
         d7 = ((latest / float(close.iloc[-5])) - 1) * 100 if n >= 5 else 0
         d30 = ((latest / float(close.iloc[-21])) - 1) * 100 if n >= 21 else 0
-
-        if n >= 252:
-            d365 = ((latest / float(close.iloc[-252])) - 1) * 100
-        else:
-            d365 = ((latest / float(close.iloc[0])) - 1) * 100
+        d365 = ((latest / float(close.iloc[-252])) - 1) * 100 if n >= 252 else 0
 
         # ===== DRAWDOWN =====
         peak_6m = float(close.tail(126).max())
@@ -57,7 +84,7 @@ try:
             signal = "🔴 CRASH"
             base_pct = 0.60
         elif drawdown_6m <= -12:
-            signal = "🟠 DEEP CORRECTION (High)"
+            signal = "🟠 DEEP CORRECTION"
             base_pct = 0.30
         elif drawdown_6m <= -8:
             signal = "🟡 CORRECTION"
@@ -93,8 +120,7 @@ try:
             vol_factor = 0.95
 
         # ===== RSI =====
-        rsi_series = compute_rsi(close)
-        rsi14 = float(rsi_series.iloc[-1])
+        rsi14 = float(compute_rsi(close).iloc[-1])
 
         if rsi14 < 30:
             rsi_state = "Oversold 🟢"
@@ -108,17 +134,16 @@ try:
             rsi_state = "Overbought 🔴"
 
         # ===== REGIME =====
-        if d365 < 0:
-            regime = "🐻 Bear"
-        else:
-            regime = "🐂 Bull"
+        regime = "🐻 Bear" if d365 < 0 else "🐂 Bull"
 
-        # ===== VALUATION =====
+        # ===== VALUATION (DYNAMIC) =====
+        pe = get_nifty_pe()
+        pe_percentile = pe_to_percentile(pe)
+
         valuation = "Unknown"
         valuation_cap = None
-        try:
-            pe_percentile = float(os.environ.get("PE_PERCENTILE", "nan"))
 
+        if pe_percentile is not None:
             if pe_percentile <= 25:
                 valuation = "🟢 Cheap"
                 valuation_cap = 0.45
@@ -132,13 +157,8 @@ try:
                 valuation = "🔴 Expensive"
                 valuation_cap = 0.25
 
-        except Exception:
-            pass
-
         # ===== ADVANCED =====
-        adv_pct = base_pct
-        adv_pct *= trend_factor
-        adv_pct *= vol_factor
+        adv_pct = base_pct * trend_factor * vol_factor
 
         if rsi14 <= 30:
             adv_pct *= 1.05
@@ -161,34 +181,21 @@ try:
         stage2 = int(adv_amount * 0.35)
         stage3 = int(adv_amount * 0.25)
 
-        # ===== MESSAGE =====
-        msg = f"""📊 NIFTY: {round(latest, 2)}
+        msg = f"""📊 NIFTY: {round(latest,2)}
 
---- BASIC VIEW ---
-1D: {round(d1, 2)}%
-7D: {round(d7, 2)}%
-1M: {round(d30, 2)}%
-1Y: {round(d365, 2)}%
+1D: {round(d1,2)}% | 7D: {round(d7,2)}%
+1M: {round(d30,2)}% | 1Y: {round(d365,2)}%
 
-Drawdown (6M): {round(drawdown_6m, 2)}%
-Drawdown (ATH): {round(drawdown_ath, 2)}%
+Drawdown: {round(drawdown_6m,2)}%
 
 Signal: {signal}
-💰 Invest Today: ₹{basic_amount} (₹{basic_1L} for ₹1L)
+💰 Invest: ₹{adv_amount}
 
---- ADVANCED VIEW ---
 Trend: {trend}
-Volatility: {vol}
-Regime: {regime}
-RSI(14): {round(rsi14,1)} ({rsi_state})
-Valuation: {valuation}
+RSI: {round(rsi14,1)} ({rsi_state})
+Valuation: {valuation} (PE: {pe})
 
-💰 Adjusted Invest: ₹{adv_amount} (₹{adv_1L} for ₹1L)
-
---- PRO DEPLOYMENT PLAN ---
-Stage 1: ₹{stage1}
-Stage 2: ₹{stage2}
-Stage 3: ₹{stage3}
+Stages: ₹{stage1} | ₹{stage2} | ₹{stage3}
 """
 
         send(msg)
