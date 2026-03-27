@@ -5,7 +5,7 @@ import os
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 CHAT_ID = os.environ["CHAT_ID"]
 
-TOTAL_CAPITAL = 500000  # change
+TOTAL_CAPITAL = 500000  # 👈 CHANGE THIS
 
 def send(msg):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
@@ -24,27 +24,40 @@ try:
         prev = float(close.iloc[-2]) if n >= 2 else latest
 
         # ===== RETURNS =====
-        d1 = ((latest / prev) - 1) * 100
-        d7 = ((latest / float(close.iloc[-5])) - 1) * 100 if n >= 5 else 0
-        d30 = ((latest / float(close.iloc[-21])) - 1) * 100 if n >= 21 else 0
+        d1 = float((latest / prev - 1) * 100)
+        d7 = float((latest / float(close.iloc[-5]) - 1) * 100) if n >= 5 else 0
+        d30 = float((latest / float(close.iloc[-21]) - 1) * 100) if n >= 21 else 0
+
+        # 1Y (robust)
+        if n >= 252:
+            d365 = float((latest / float(close.iloc[-252]) - 1) * 100)
+        else:
+            d365 = float((latest / float(close.iloc[0]) - 1) * 100)
 
         # ===== DRAWDOWN =====
         peak_6m = float(close.tail(126).max())
-        drawdown_6m = ((latest - peak_6m) / peak_6m) * 100
+        drawdown_6m = float((latest - peak_6m) / peak_6m * 100)
 
         peak_ath = float(close.max())
-        drawdown_ath = ((latest - peak_ath) / peak_ath) * 100
+        drawdown_ath = float((latest - peak_ath) / peak_ath * 100)
 
-        # ===== SIGNAL =====
+        # ===== SMART SIGNAL + ALLOCATION =====
         if drawdown_ath <= -20 or drawdown_6m <= -15:
             signal = "🔴 CRASH"
             invest_pct = 0.60
-        elif drawdown_6m <= -10:
-            signal = "🟠 DEEP CORRECTION"
-            invest_pct = 0.40
-        elif drawdown_6m <= -5:
+
+        elif drawdown_6m <= -12:
+            signal = "🟠 DEEP CORRECTION (High)"
+            invest_pct = 0.30   # 👈 controlled (important)
+
+        elif drawdown_6m <= -8:
             signal = "🟡 CORRECTION"
             invest_pct = 0.25
+
+        elif drawdown_6m <= -5:
+            signal = "🟢 SMALL DIP"
+            invest_pct = 0.15
+
         else:
             signal = "⚪ NORMAL"
             invest_pct = 0.0
@@ -53,7 +66,7 @@ try:
         invest_amount = int(TOTAL_CAPITAL * invest_pct)
         invest_1L = int(100000 * invest_pct)
 
-        # Momentum tweak
+        # Momentum tweak (optional but smart)
         if d1 < -2 and invest_pct > 0:
             invest_amount = int(invest_amount * 1.2)
             invest_1L = int(invest_1L * 1.2)
@@ -64,6 +77,7 @@ try:
 1D: {round(d1,2)}%
 7D: {round(d7,2)}%
 1M: {round(d30,2)}%
+1Y: {round(d365,2)}%
 
 Drawdown (6M): {round(drawdown_6m,2)}%
 Drawdown (ATH): {round(drawdown_ath,2)}%
