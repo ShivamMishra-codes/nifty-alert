@@ -2,8 +2,11 @@ name: Nifty Alert
 
 on:
   schedule:
+    - cron: "0 7 * * *"    # 12:30 PM IST
+    - cron: "10 7 * * *"   # 12:40 PM IST
     - cron: "0 8 * * *"    # 1:30 PM IST
     - cron: "10 8 * * *"   # 1:40 PM IST
+
   workflow_dispatch:
   push:
     branches:
